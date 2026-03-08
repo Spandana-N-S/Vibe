@@ -1,11 +1,14 @@
 'use client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createTRPCClient, httpBatchLink } from '@trpc/client';
-import { createTRPCContext } from '@trpc/tanstack-react-query';
+import { httpBatchLink } from '@trpc/client';
+import { createTRPCReact } from '@trpc/react-query';
 import { useState } from 'react';
 import SuperJSON from 'superjson';
 import { makeQueryClient } from './routers/query-client';
 import type { AppRouter } from './routers/_app';
+
+// Create tRPC React hooks
+export const trpc = createTRPCReact<AppRouter>();
 
 let browserQueryClient: QueryClient | undefined = undefined;
 
@@ -24,20 +27,8 @@ function getUrl() {
   }
   // Server-side: use full URL
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}/api/trpc`;
-  return `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3002'}/api/trpc`;
+  return `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/trpc`;
 }
-
-const trpcClient = createTRPCClient<AppRouter>({
-  links: [
-    httpBatchLink({
-      transformer: SuperJSON,
-      url: getUrl(),
-    }),
-  ],
-});
-
-// tRPC v11 context
-const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
 
 export function TRPCReactProvider(
   props: Readonly<{
@@ -45,16 +36,23 @@ export function TRPCReactProvider(
   }>,
 ) {
   const queryClient = getQueryClient();
-  const [trpcClientInstance] = useState(() => trpcClient);
+  const [trpcClient] = useState(() =>
+    trpc.createClient({
+      links: [
+        httpBatchLink({
+          transformer: SuperJSON,
+          url: getUrl(),
+        }),
+      ],
+    })
+  );
   
   return (
-    <QueryClientProvider client={queryClient}>
-      <TRPCProvider trpcClient={trpcClientInstance} queryClient={queryClient}>
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
         {props.children}
-      </TRPCProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </trpc.Provider>
   );
 }
-
-export { useTRPC };
 
